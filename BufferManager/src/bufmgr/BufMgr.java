@@ -1,8 +1,24 @@
+package bufmgr;
+
+/*
+import diskmgr.DiskMgr;
+import diskmgr.DiskMgrException;
+import diskmgr.DuplicateEntryException;
+import diskmgr.FileEntryNotFoundException;
+import diskmgr.FileIOException;
+import diskmgr.FileNameTooLongException;
+import diskmgr.InvalidPageNumberException;
+import diskmgr.InvalidRunSizeException;
+import diskmgr.OutOfSpaceException;
+*/
+
+import global.GlobalConst;
+import global.PageId;
+
 public class BufMgr {
 
-int numbufs;
-int lookAheadSize;
-String replacementPolicy;
+private Page[] frames;
+private Descriptor[] bufDescr;
 
 /**
 * Create the BufMgr object.
@@ -15,7 +31,10 @@ String replacementPolicy;
 * @param replacementPolicy Name of the replacement policy, that parameter will be set to "LFU" (you
 can safely ignore this parameter as you will implement only one policy)
 */
-public BufMgr(int numbufs, int lookAheadSize, String replacementPolicy) {};
+public BufMgr(int numbufs, int lookAheadSize, String replacementPolicy) {
+	frames = new Page[numbufs];
+	bufDescr = new Descriptor[numbufs];
+}
 /**
 * Pin a page.
 * First check if this page is already in the buffer pool.
