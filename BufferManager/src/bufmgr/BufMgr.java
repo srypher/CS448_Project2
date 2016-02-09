@@ -1,4 +1,9 @@
 public class BufMgr {
+
+int numbufs;
+int lookAheadSize;
+String replacementPolicy;
+
 /**
 * Create the BufMgr object.
 * Allocate pages (frames) for the buffer pool in main memory and
