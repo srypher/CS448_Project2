@@ -1,5 +1,5 @@
 public class HashTable {
-    private final static int HTSIZE = 128; //arbitrary size. Change later?
+    private final static int HTSIZE = 101; //arbitrary size. Change later?
     
     HashEntry[] table;
     

@@ -20,6 +20,8 @@ public class BufMgr {
 private Page[] frames;
 private Descriptor[] bufDescr;
 
+private boolean full;
+
 /**
 * Create the BufMgr object.
 * Allocate pages (frames) for the buffer pool in main memory and
@@ -34,6 +36,7 @@ can safely ignore this parameter as you will implement only one policy)
 public BufMgr(int numbufs, int lookAheadSize, String replacementPolicy) {
 	frames = new Page[numbufs];
 	bufDescr = new Descriptor[numbufs];
+	full = false;
 }
 /**
 * Pin a page.
