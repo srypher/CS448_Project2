@@ -1,6 +1,5 @@
 package bufmgr;
 
-/*
 import diskmgr.DiskMgr;
 import diskmgr.DiskMgrException;
 import diskmgr.DuplicateEntryException;
@@ -10,17 +9,23 @@ import diskmgr.FileNameTooLongException;
 import diskmgr.InvalidPageNumberException;
 import diskmgr.InvalidRunSizeException;
 import diskmgr.OutOfSpaceException;
-*/
+
+import hashtable.HashTable;
+import hashtable.HashEntry;
+
+import chainexception.ChainException;
 
 import global.GlobalConst;
 import global.PageId;
 
 public class BufMgr {
 
-private Page[] frames;
+private Page[] bufferPool;
 private Descriptor[] bufDescr;
-
-private boolean full;
+private HashTable directory;
+private boolean isFull;
+private int numbufs;
+private int bufferLoc;
 
 /**
 * Create the BufMgr object.
@@ -34,9 +39,12 @@ private boolean full;
 can safely ignore this parameter as you will implement only one policy)
 */
 public BufMgr(int numbufs, int lookAheadSize, String replacementPolicy) {
-	frames = new Page[numbufs];
+	this.numbufs = numbufs;
+	bufferLoc = 0;
+	bufferPool = new Page[numbufs];
 	bufDescr = new Descriptor[numbufs];
-	full = false;
+	directory = new HashTable();
+	isFull = false;
 }
 /**
 * Pin a page.
@@ -56,7 +64,51 @@ public BufMgr(int numbufs, int lookAheadSize, String replacementPolicy) {
 * @param page the pointer point to the page.
 * @param emptyPage true (empty page); false (non-empty page)
 */
-public void pinPage(PageId pageno, Page page, boolean emptyPage) {};
+public void pinPage(PageId pageno, Page page, boolean emptyPage) throws BufferPoolExceededException, Exception, ChainException {
+	if(directory.get(pageno.pid) != -1) {
+		bufDescr[directory.get(pageno.pid)].pinPage();
+		page.setPage(bufferPool[directory.get(pageno.pid)]);
+	} 
+	else {
+		//if buffer is full, find the replacement per LFU strategy
+		//if the page to replace is dirty, flush it
+		//then read the page in then put it in the bufferpool and bufDescr then set it's frame in the directory
+		if(isFull) {
+			if(getNumUnpinned() == 0) {
+				throw new BufferPoolExceededException(null, "BUFMGR:NO_UNPINNED_FRAMES");
+			}
+			int replacement = findReplacement();
+			if(bufDescr[replacement].getDirty()) {
+				flushPage(bufDescr[replacement].getPagenumber());
+			}
+			try {
+				DiskMgr.read_page(pageno.pid, page);
+			}
+			catch(Exception e) {
+				throw new DiskMgrException(e, "DB.java:read_page() failed");
+			}
+			bufferPool[replacement] = page;
+			bufDescr[replacement] = new Descriptor(pageno);
+			directory.set(pageno, replacement);
+		}
+		//otherwise, just read in the page
+		else {
+			try {
+				DiskMgr.read_page(pageno, page);
+			}
+			catch(Exception e) {
+				throw new DiskMgrException(e, "DB.java:read_page() failed");
+			}
+			bufferPool[buffLoc] = page;
+			bufDescr[buffLoc] = new Descriptor(pageno);
+			directory.put(pageno.pid, buffLoc);
+			buffLoc++;
+			if(buffLoc = numbufs) {
+				isFull = true;
+			}
+		}
+	}
+}
 /**
 * Unpin a page specified by a pageId.
 * This method should be called with dirty==true if the client has
@@ -73,7 +125,22 @@ public void pinPage(PageId pageno, Page page, boolean emptyPage) {};
 * @param pageno page number in the Minibase.
 * @param dirty the dirty bit of the frame
 */
-public void unpinPage(PageId pageno, boolean dirty) {};
+public void unpinPage(PageId pageno, boolean dirty) throws PageUnpinnnedException, HashEntryNotFoundException {
+	if(directory.get(pageno.pid) != null) {
+		if(dirty) {
+			bufDescr[directory.get(pageno.pid)].toggleDirty();
+		}
+		if(bufDescr[directory.get(pageno.pid)] > 0) {
+			bufDescr[directory.get(pageno.pid)].unpinPage();
+		}
+		else {
+			throw new PageUnpinnedException(null, "BUFMGR:PAGE_NOT_PINNED");
+		}
+	}
+	else {
+		throw new HashEntryNotFoundException(null, "BUFMGR:PAGE_NOT_FOUND_IN_BUFFER_POOL");
+	}
+}
 /**
 * Allocate new pages.
 * Call DB object to allocate a run of new pages and
@@ -88,7 +155,22 @@ public void unpinPage(PageId pageno, boolean dirty) {};
 *
 * @return the first page id of the new pages.__ null, if error.
 */
-public PageId newPage(Page firstpage, int howmany) {};
+public PageId newPage(Page firstpage, int howmany) throws Exception, ChainException {
+	if(isFull) {
+		return null;
+	}
+	else {
+		PageId start_page_num = new PageId();
+		try {
+			DiskMgr.allocate_page(start_page_num, howmany);
+		}
+		catch(Exception e) {
+			throw new DiskMgrException(e, "DB.java:allocate_page() failed");
+		}
+		pinPage(start_page_num, firstpage, false);
+		return firstpage;
+	}
+}
 /**
 * This method should be called to delete a page that is on disk.
 * This routine must call the method in diskmgr package to
@@ -96,25 +178,76 @@ public PageId newPage(Page firstpage, int howmany) {};
 *
 * @param globalPageId the page number in the data base.
 */
-public void freePage(PageId globalPageId) {};
+public void freePage(PageId globalPageId) throws Exception, ChainException {
+	try {
+		DiskMgr.deallocate_page(globalPageId);
+	}
+	catch(Exception e) {
+		throw new DiskMgrException(e, "DB.java:deallocate_page() failed");
+	}
+}
 /**
 * Used to flush a particular page of the buffer pool to disk.
 * This method calls the write_page method of the diskmgr package.
 *
 * @param pageid the page number in the database.
 */
-public void flushPage(PageId pageid) {};
+public void flushPage(PageId pageid) throws HashEntryNotFoundException, Exception, ChainException{
+	if(directory.get(pageid.pid) != null) {
+		Page page = new Page();
+		page = bufferPool[directory.get(pageid.pid)];
+		try { 
+			DiskMgr.write_page(pageid, page);
+		}
+		catch(Exception e) {
+			throw new DiskMgrException(e, "DB.java:write_page() failed");
+		}
+	}
+	else {
+		throw new HashEntryNotFoundException(null, "BUFMGR:PAGE_NOT_FOUND_IN_BUFFER_POOL")
+	}
+}
 /**
 * Used to flush all dirty pages in the buffer pool to disk
 *
 */
-public void flushAllPages() {};
+public void flushAllPages() {
+	for(int i = 0; i < numbufs; i++) {
+		if(bufDescr[i] != null && bufDescr[i].getDirty()) {
+			flushPage(bufDescr[replacement].getPagenumber());
+		}
+	}
+}
 /**
 * Returns the total number of buffer frames.
 */
-public int getNumBuffers() {}
+public int getNumBuffers() {
+	return numbufs;
+}
 /**
 * Returns the total number of unpinned buffer frames.
 */
-public int getNumUnpinned() {}
-};
+public int getNumUnpinned() {
+	int numUnPinned = 0;
+	for(int i = 0; i < numbufs; i++) {
+		if(bufDescr[i] != null && bufDescr[i].getPinCount() == 0) {
+			numUnPinned++;
+		}
+	}
+	return numUnPinned;
+}
+
+public int findReplacement() {
+	int tempCounter = 100000;
+	int tempIndex = -1;
+	for(int i = 0; i < numbufs; i++) {
+		if(bufDescr[i] != null && bufDescr[i].getPinCount() == 0) {
+			if(tempCounter > bufDescr[i].getLFUCount()) {
+				tempCounter = bufDescr[i].getLFUCount();
+				tempIndex = i;
+			}
+		}
+	}
+	return tempIndex;
+}
+}
