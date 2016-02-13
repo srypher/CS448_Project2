@@ -143,8 +143,9 @@ public class DiskMgr implements GlobalConst {
 	   FileIOException, 
 	   IOException {
 
-    if((pageno.pid < 0)||(pageno.pid >= num_pages))
+    if((pageno.pid < 0)||(pageno.pid >= num_pages)) {
       throw new InvalidPageNumberException(null, "BAD_PAGE_NUMBER");
+      }
     
     // Seek to the correct page
     fp.seek((long)(pageno.pid *PAGE_SIZE));

@@ -15,12 +15,12 @@ public class Descriptor {
 	}
 
 	//toggle dirty bit to on
-	public toggleDirty() {
+	public void toggleDirty() {
 		dirtybit = true;
 	}
 
 	//get dirtybit value;
-	public getDirty() {
+	public boolean getDirty() {
 		return dirtybit;
 	}
 
