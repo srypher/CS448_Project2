@@ -1,3 +1,5 @@
+package hashtable;
+
 public class HashTable {
     private final static int HTSIZE = 101; //arbitrary size. Change later?
     private int maxSize; //the maximum amount of entries (i.e., the size of the buffer), 0 if there is no max
@@ -5,7 +7,7 @@ public class HashTable {
     
     HashEntry[] table;
     
-    HashTable() {
+    public HashTable() {
         table = new HashEntry[HTSIZE];
         for (int i = 0; i < HTSIZE; i++) {
             table[i] = null;
@@ -15,7 +17,7 @@ public class HashTable {
     }
     
     //initialize with a max size
-    HashTable(int max) {
+    public HashTable(int max) {
         this();
         maxSize = max;
         
