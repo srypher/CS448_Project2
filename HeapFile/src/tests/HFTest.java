@@ -24,7 +24,7 @@ class HFDriver extends TestDriver implements GlobalConst
 	private final static boolean FAIL = false;
 
 	private int choice;
-	private final static int reclen = 32;
+	private final static int reclen = /*32*/247;
 
 	public HFDriver () {
 		super("hptest");
@@ -181,7 +181,6 @@ class HFDriver extends TestDriver implements GlobalConst
 				status = FAIL;
 			}
 		}	
-		//**/status = FAIL;
 		if ( status == OK ) {
 			int len, i = 0;
 			DummyRecord rec = null;
@@ -243,7 +242,6 @@ class HFDriver extends TestDriver implements GlobalConst
 					}
 				}	
 				++i;
-			/**/break;
 			}
 
 			//If it gets here, then the scan should be completed
