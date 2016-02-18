@@ -23,32 +23,39 @@ public class HeapFile {
   protected HFNode header; //Prev is No Space list, next is Free Space list. Free space is ordered from least space to most.
   private int recCount;
 
+  static final int SLOT_SIZE = 4; //size of a slot in HFPage. This + record length = free space needed
+  				  //note that HFPage has 1028 bytes, 20 of which are used for metadata, and 4 extra byte are used per record
+
   public HeapFile(String name) {
-        Minibase.DiskManager.closeDB();
 	Minibase.DiskManager.openDB(name);
 	header = new HFNode(new HFPage(), null, null);
         int numPages = Minibase.DiskManager.getAllocCount();
         HFNode newHFNode, iter;
-        Page newPage;
-	HFPage newHFPage;
+        Page newPage = new Page();
+	PageId newPageId = new PageId();
+	HFPage newHFPage = new HFPage();
 	RID pageCounter;
 	recCount = 0;
 
+	//Minibase.DiskManager.print_space_map();
+	
 	//read the pages from the disk
        	for (int i = 1; i <= numPages; i++) {
        		//get page from disk
 		newPage = new Page();
-		Minibase.DiskManager.read_page(new PageId(i), newPage);
-		newHFPage = new HFPage(newPage);
+		newPageId = new PageId(i);
+		newHFPage = new HFPage();
+		Minibase.DiskManager.read_page(newPageId, newHFPage);
+		newHFPage.setCurPage(newPageId);
 		pageCounter = newHFPage.firstRecord();
 		try {
 			while (pageCounter != null) {
 				recCount++;
 				pageCounter = newHFPage.nextRecord(pageCounter);
 			}
-		} catch (Exception e) {}
+		} catch (Exception e) { System.out.println("ERROR READING RECORDS!"); }
 
-		if (newHFPage.getFreeSpace() == 0) { //put it in Free Space List
+		if (newHFPage.getFreeSpace() > SLOT_SIZE) { //put it in Free Space List
 			if (header.getNext() == null) {
 				newHFNode = new HFNode(newHFPage, header, null);
 				header.setNext(newHFNode);
@@ -76,33 +83,47 @@ public class HeapFile {
 			header.setNext(newHFNode);
 		}
         }
-
 	
     }
     
     public RID insertRecord(byte[] record) throws ChainException {
 	Page newPage;
+	PageId newPageId;
 	HFPage newHFPage;
 	HFNode targetNode = header;
 	HFNode newHFNode;
+	HFNode noSpaceIter;
 	RID toReturn;
 	HFPage bucket;
 	
-	while (targetNode.getNext() != null && header.getNext().getFreeSpace() < record.length) {
+	//go through list to find a page with enough space
+	while (targetNode.getNext() != null && targetNode.getNext().getFreeSpace() < record.length + SLOT_SIZE) {
 		targetNode = targetNode.getNext();
 	}
 	if (targetNode.getNext() == null) {
+		//**/System.out.println("adding page!");
 		//free list doesn't have a page for it, allocate a new page
-		newPage = new Page();
-		Minibase.DiskManager.read_page(Minibase.DiskManager.allocate_page(), newPage);
-		newHFPage = new HFPage(newPage);
+		newHFPage = new HFPage();
+		newPageId = Minibase.DiskManager.allocate_page();
+		Minibase.DiskManager.read_page(newPageId, newHFPage);
+		
+		newHFPage.setCurPage(newPageId);
+		//newHFPage.print();
 		toReturn = newHFPage.insertRecord(record);
+		//newHFPage.print();
 		
 		//add to no space list if page is full
-		if (newHFPage.getFreeSpace() == 0) {
-			newHFNode = new HFNode(newHFPage, header, header.getPrev());
-			if (header.getPrev() != null) header.getPrev().setPrev(newHFNode);
-			header.setPrev(newHFNode);
+		if (newHFPage.getFreeSpace() <= SLOT_SIZE) {
+			noSpaceIter = header.getPrev();
+			if (noSpaceIter == null) {
+				newHFNode = new HFNode(newHFPage, header, null);
+				header.setPrev(newHFNode);
+				return toReturn;
+			}
+			while (noSpaceIter.getNext() != null) 
+				noSpaceIter = noSpaceIter.getNext();
+			newHFNode = new HFNode(newHFPage, noSpaceIter, null);
+			noSpaceIter.setNext(newHFNode);
 			recCount++;
 			return toReturn;
 		}
@@ -122,16 +143,27 @@ public class HeapFile {
 		return toReturn;
 	}
 
-	targetNode = header.getNext();
+	//update one of the pages in the free list
+	targetNode = targetNode.getNext();
 	toReturn = targetNode.getPage().insertRecord(record);
 	if (targetNode.getFreeSpace() == 0) {
 		//remove from free list, add to no space list
-		targetNode.getNext().setPrev(targetNode.getPrev());
+		if (targetNode.getNext() != null) targetNode.getNext().setPrev(targetNode.getPrev());
 		targetNode.getPrev().setNext(targetNode.getNext());
-		targetNode.setPrev(header);
-		targetNode.setNext(header.getPrev());
-		header.getPrev().setPrev(targetNode);
-		header.setPrev(targetNode);
+		noSpaceIter = header.getPrev();
+		if (noSpaceIter == null) {
+			targetNode.setPrev(header);
+			targetNode.setNext(null);
+			header.setPrev(targetNode);
+			recCount++;
+			return toReturn;
+		}
+
+		while (noSpaceIter.getNext() != null) 
+			noSpaceIter = noSpaceIter.getNext();
+		targetNode.setPrev(noSpaceIter);
+		targetNode.setNext(null);
+		noSpaceIter.setNext(targetNode);
 		recCount++;
 		return toReturn;
 	}
@@ -163,7 +195,23 @@ public class HeapFile {
     }
     
     public HeapScan openScan() {
-    	System.out.println("Free:\n--------------------");
+	//uncomment this to get the actual data in the pages
+	/*RID id = header.getNext().getPage().firstRecord();
+	for (int i = 0; i < 3; i++) {
+		for (int j = 0; j < 4; j++) {
+			System.out.print(header.getNext().getPage().selectRecord(id)[j]);
+		}
+		System.out.print(" ");
+		id = header.getNext().getPage().nextRecord(id);
+	}
+	System.out.println();
+	*/
+	//printHeap();
+	return new HeapScan(this);
+    }
+
+    public void printHeap() {
+	System.out.println("Free:\n--------------------");
 	HFNode node = header.getNext();
 	while (node != null) {
 		node.getPage().print();
@@ -175,6 +223,5 @@ public class HeapFile {
 		node.getPage().print();
 		node = node.getNext();
 	}
-        return new HeapScan(this);
     }
 }
