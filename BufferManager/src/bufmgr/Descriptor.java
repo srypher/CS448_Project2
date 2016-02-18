@@ -18,6 +18,9 @@ public class Descriptor {
 	public void toggleDirty() {
 		dirtybit = true;
 	}
+	public void untoggleDirty() {
+		dirtybit = false;
+	}
 
 	//get dirtybit value;
 	public boolean getDirty() {

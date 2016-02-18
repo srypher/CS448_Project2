@@ -71,7 +71,7 @@ public BufMgr(int numbufs, int lookAheadSize, String replacementPolicy) {
 * @param emptyPage true (empty page); false (non-empty page)
 */
 public void pinPage(PageId pageno, Page page, boolean emptyPage) throws BufferPoolExceededException, ChainException, InvalidPageNumberException {
- if (pageno.pid < 0 || pageno.pid > numbufs) {
+ if (pageno.pid < 0) {
   throw new InvalidPageNumberException(null, "Invalid Page Number Exeption");
  }
  if(directory.get(pageno.pid) != -1) {
@@ -83,6 +83,7 @@ public void pinPage(PageId pageno, Page page, boolean emptyPage) throws BufferPo
   //if the page to replace is dirty, flush it
   //then read the page in then put it in the bufferpool and bufDescr then set it's frame in the directory
   if(isFull) {
+    System.out.println("Index 0 page number: " + bufDescr[0].getPagenumber());
    if(getNumUnpinned() == 0) {
     throw new BufferPoolExceededException(null, "BUFMGR:NO_UNPINNED_FRAMES");
    }
@@ -96,10 +97,13 @@ public void pinPage(PageId pageno, Page page, boolean emptyPage) throws BufferPo
    catch(Exception e) {
     throw new DiskMgrException(e, "DB.java:read_page() failed");
    }
+   directory.delete(bufDescr[replacement].getPagenumber().pid);
    bufferPool[replacement] = page;
    bufDescr[replacement] = new Descriptor(pageno);
    bufDescr[replacement].pinPage();
-   directory.set(pageno.pid, replacement);
+   directory.put(pageno.pid, replacement);
+   System.out.println("Hello: " + directory.get(pageno.pid));
+   System.out.println("New Page Number: " + bufDescr[directory.get(pageno.pid)].getPagenumber());
   }
   //otherwise, just read in the page
   else {
@@ -112,10 +116,12 @@ public void pinPage(PageId pageno, Page page, boolean emptyPage) throws BufferPo
    bufferPool[bufferLoc] = page;
    bufDescr[bufferLoc] = new Descriptor(pageno);
    bufDescr[bufferLoc].pinPage();
-   directory.put(pageno.pid, bufferLoc);
-   bufferLoc++;
-   if(bufferLoc == numbufs) {
+   int i = directory.put(pageno.pid, bufferLoc);
+   if(bufferLoc == numbufs - 1) {
     isFull = true;
+   }
+   else {
+    bufferLoc++;
    }
   }
  }
@@ -167,7 +173,7 @@ public void unpinPage(PageId pageno, boolean dirty) throws PagePinnedException, 
 * @return the first page id of the new pages.__ null, if error.
 */
 public PageId newPage(Page firstpage, int howmany) throws ChainException {
- if(isFull || bufferLoc + howmany > numbufs) {
+ if(isFull) {
   return null;
  }
  else {
@@ -242,7 +248,7 @@ public int getNumBuffers() {
 public int getNumUnpinned() {
  int numUnPinned = 0;
  for(int i = 0; i < numbufs; i++) {
-  if(bufDescr[i] != null && bufDescr[i].getPinCount() == 0) {
+  if(bufDescr[i] == null || bufDescr[i].getPinCount() == 0) {
    numUnPinned++;
   }
  }
@@ -253,6 +259,10 @@ public int findReplacement() {
  int tempCounter = 100000;
  int tempIndex = -1;
  for(int i = 0; i < numbufs; i++) {
+  if(bufDescr[i] == null) {
+    tempIndex = i;
+    break;
+  }
   if(bufDescr[i] != null && bufDescr[i].getPinCount() == 0) {
    if(tempCounter > bufDescr[i].getLFUCount()) {
     tempCounter = bufDescr[i].getLFUCount();
