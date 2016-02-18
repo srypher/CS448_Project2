@@ -53,6 +53,7 @@ public class HashTable {
     public int put(int key, int value) {
         //check if table is full
         if (maxSize != 0 && currentSize >= maxSize) {
+            System.out.println("Houston we have a problem");
             //error, exceed max
             return -1;
         }
