@@ -86,6 +86,7 @@ public void pinPage(PageId pageno, Page page, boolean emptyPage) throws BufferPo
   //if the page to replace is dirty, flush it
   //then read the page in then put it in the bufferpool and bufDescr then set it's frame in the directory
   if(isFull) {
+    Page out = new Page();
     //System.out.println("Index 0 page number: " + bufDescr[0].getPagenumber());
    if(getNumUnpinned() == 0) {
     throw new BufferPoolExceededException(null, "BUFMGR:NO_UNPINNED_FRAMES");
@@ -95,13 +96,14 @@ public void pinPage(PageId pageno, Page page, boolean emptyPage) throws BufferPo
     flushPage(bufDescr[replacement].getPagenumber());
    }
    try {
-    diskmgr.read_page(pageno, page);
+    diskmgr.read_page(pageno, out);
    }
    catch(Exception e) {
     throw new DiskMgrException(e, "DB.java:read_page() failed");
    }
    directory.delete(bufDescr[replacement].getPagenumber().pid);
-   bufferPool[replacement] = page;
+   bufferPool[replacement].copyPage(out);
+   page.setPage(bufferPool[replacement]);
    bufDescr[replacement] = new Descriptor(pageno);
    bufDescr[replacement].pinPage();
    //System.out.println("putting in: " + pageno.pid + " " + replacement);
@@ -122,9 +124,8 @@ public void pinPage(PageId pageno, Page page, boolean emptyPage) throws BufferPo
    catch(Exception e) {
     throw new DiskMgrException(e, "DB.java:read_page() failed");
    }
-   bufferPool[bufferLoc].setPage(out);
-   page = bufferPool[bufferLoc];
-   //System.out.print(page + " " + out + " " + bufferPool[bufferLoc]);
+   bufferPool[bufferLoc].copyPage(out);
+   page.setPage(bufferPool[bufferLoc]);
    bufDescr[bufferLoc] = new Descriptor(pageno);
    bufDescr[bufferLoc].pinPage();
    int i = directory.put(pageno.pid, bufferLoc);
@@ -134,7 +135,6 @@ public void pinPage(PageId pageno, Page page, boolean emptyPage) throws BufferPo
    else {
     bufferLoc++;
    }
- //try { if (bufferLoc > 4) System.out.println("B" + Convert.getIntValue(0, bufferPool[2].getData())); } catch (Exception e) {}
 
   }
  }
