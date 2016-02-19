@@ -143,7 +143,6 @@ class BMDriver extends TestDriver implements GlobalConst {
 		PageId firstPid = new PageId(); 
 
 		System.out.print("  - Allocate a bunch of new pages\n");
-
 		try {
 			firstPid = Minibase.BufferManager.newPage( pg, numPages );
 		}
@@ -153,7 +152,6 @@ class BMDriver extends TestDriver implements GlobalConst {
 			e.printStackTrace();
 			return false;
 		}
-
 
 		// Unpin that first page... to simplify our loop.
 		try {
@@ -172,8 +170,7 @@ class BMDriver extends TestDriver implements GlobalConst {
 
 		for ( pid.pid = firstPid.pid, lastPid.pid = pid.pid+numPages; 
 		status == OK && pid.pid < lastPid.pid; 
-		pid.pid = pid.pid + 1 ) {
-
+		pid.pid = pid.pid + 1) {
 			try {
 				Minibase.BufferManager.pinPage( pid, pg, /*emptyPage:*/ false);
 			}

@@ -83,7 +83,7 @@ public void pinPage(PageId pageno, Page page, boolean emptyPage) throws BufferPo
   //if the page to replace is dirty, flush it
   //then read the page in then put it in the bufferpool and bufDescr then set it's frame in the directory
   if(isFull) {
-    System.out.println("Index 0 page number: " + bufDescr[0].getPagenumber());
+    //System.out.println("Index 0 page number: " + bufDescr[0].getPagenumber());
    if(getNumUnpinned() == 0) {
     throw new BufferPoolExceededException(null, "BUFMGR:NO_UNPINNED_FRAMES");
    }
@@ -101,9 +101,12 @@ public void pinPage(PageId pageno, Page page, boolean emptyPage) throws BufferPo
    bufferPool[replacement] = page;
    bufDescr[replacement] = new Descriptor(pageno);
    bufDescr[replacement].pinPage();
+   //System.out.println("putting in: " + pageno.pid + " " + replacement);
    directory.put(pageno.pid, replacement);
-   System.out.println("Hello: " + directory.get(pageno.pid));
-   System.out.println("New Page Number: " + bufDescr[directory.get(pageno.pid)].getPagenumber());
+   //System.out.println("Frame: " + directory.get(pageno.pid));
+   //System.out.println("New Index 0 page Number: " + bufDescr[0].getPagenumber());
+   //System.out.println("New Page Number: " + bufDescr[directory.get(pageno.pid)].getPagenumber());
+   //System.out.println();
   }
   //otherwise, just read in the page
   else {
