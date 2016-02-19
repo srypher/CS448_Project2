@@ -20,7 +20,8 @@ import chainexception.ChainException;
 import global.GlobalConst;
 import global.PageId;
 import global.Page;
-/**/import global.Minibase;
+import global.Minibase;
+import global.Convert;
 
 public class BufMgr {
 
@@ -47,6 +48,8 @@ public BufMgr(int numbufs, int lookAheadSize, String replacementPolicy) {
  this.numbufs = numbufs;
  bufferLoc = 0;
  bufferPool = new Page[numbufs];
+ for (int i = 0; i < numbufs; i++)
+ 	bufferPool[i] = new Page();
  bufDescr = new Descriptor[numbufs];
  directory = new HashTable(numbufs);
  isFull = false;
@@ -110,13 +113,18 @@ public void pinPage(PageId pageno, Page page, boolean emptyPage) throws BufferPo
   }
   //otherwise, just read in the page
   else {
+ //try { if (bufferLoc > 4) System.out.println("A" + Convert.getIntValue(0, bufferPool[2].getData())); } catch (Exception e) {}
+   
+   Page out = new Page();
    try {
-    diskmgr.read_page(pageno, page);
+    diskmgr.read_page(pageno, out);
    }
    catch(Exception e) {
     throw new DiskMgrException(e, "DB.java:read_page() failed");
    }
-   bufferPool[bufferLoc] = page;
+   bufferPool[bufferLoc].setPage(out);
+   page = bufferPool[bufferLoc];
+   //System.out.print(page + " " + out + " " + bufferPool[bufferLoc]);
    bufDescr[bufferLoc] = new Descriptor(pageno);
    bufDescr[bufferLoc].pinPage();
    int i = directory.put(pageno.pid, bufferLoc);
@@ -126,6 +134,8 @@ public void pinPage(PageId pageno, Page page, boolean emptyPage) throws BufferPo
    else {
     bufferLoc++;
    }
+ //try { if (bufferLoc > 4) System.out.println("B" + Convert.getIntValue(0, bufferPool[2].getData())); } catch (Exception e) {}
+
   }
  }
 }
@@ -176,7 +186,7 @@ public void unpinPage(PageId pageno, boolean dirty) throws PagePinnedException, 
 * @return the first page id of the new pages.__ null, if error.
 */
 public PageId newPage(Page firstpage, int howmany) throws ChainException {
- if(isFull) {
+ if(isFull && getNumUnpinned() == getNumBuffers()) {
   return null;
  }
  else {
