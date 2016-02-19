@@ -186,7 +186,7 @@ public void unpinPage(PageId pageno, boolean dirty) throws PagePinnedException, 
 * @return the first page id of the new pages.__ null, if error.
 */
 public PageId newPage(Page firstpage, int howmany) throws ChainException {
- if(isFull && getNumUnpinned() == getNumBuffers()) {
+ if(isFull && getNumUnpinned() != getNumBuffers()) {
   return null;
  }
  else {
@@ -209,10 +209,15 @@ public PageId newPage(Page firstpage, int howmany) throws ChainException {
 *
 * @param globalPageId the page number in the data base.
 */
-public void freePage(PageId globalPageId) throws ChainException {
- try {
-  diskmgr.deallocate_page(globalPageId);
+public void freePage(PageId globalPageId) throws ChainException, PagePinnedException {
+ if(directory.get(globalPageId.pid) != -1 ) {
+  if(bufDescr[directory.get(globalPageId.pid)].getPinCount() > 0) {
+    throw new PagePinnedException(null, "BUFMGR:PAGE_PINNED");
+  }
  }
+ try {
+   diskmgr.deallocate_page(globalPageId);
+  }
  catch(Exception e) {
   throw new DiskMgrException(e, "DB.java:deallocate_page() failed");
  }
